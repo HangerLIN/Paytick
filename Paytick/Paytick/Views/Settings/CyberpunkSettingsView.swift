@@ -433,6 +433,7 @@ struct CyberpunkSettingsFooter: View {
 struct CyberpunkPersonalInfoContent: View {
     @ObservedObject var enhancedViewModel: EnhancedIncomeViewModel
     @ObservedObject private var currencyManager = CurrencyManager.shared
+    @ObservedObject private var payrollSettings = PayrollDeductionSettings.shared
     let scrollProxy: ScrollViewProxy
     let initialSection: DeepLinkSection?
     
@@ -581,6 +582,121 @@ struct CyberpunkPersonalInfoContent: View {
                 }
             }
             .id(DeepLinkSection.financialInfo)
+
+            // Payroll Deductions Section
+            CyberpunkDeepLinkSection(
+                icon: "building.columns.fill",
+                title: "工资扣除（中国大陆 · 广州）",
+                color: CyberpunkTheme.purplePrimary
+            ) {
+                VStack(spacing: 16) {
+                    CyberpunkSettingsCard {
+                        HStack(spacing: 12) {
+                            CyberpunkIconBadge(icon: "checkmark.shield.fill", color: CyberpunkTheme.purplePrimary)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("自动扣除个税和社保")
+                                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white)
+                                Text("广州 2026：养老 8% · 医保 2% · 失业 0.2%")
+                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                    .foregroundColor(.gray.opacity(0.6))
+                            }
+
+                            Spacer()
+
+                            Toggle("", isOn: $payrollSettings.isEnabled)
+                                .toggleStyle(SwitchToggleStyle(tint: CyberpunkTheme.purplePrimary))
+                                .scaleEffect(0.8)
+                        }
+                    }
+
+                    if payrollSettings.isEnabled {
+                        CyberpunkSettingsCard {
+                            VStack(spacing: 16) {
+                                HStack(spacing: 12) {
+                                    CyberpunkIconBadge(icon: "tray.full.fill", color: CyberpunkTheme.cyanPrimary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("社保缴费基数")
+                                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                            .foregroundColor(.white)
+                                        Text("留空则按税前月薪；请按工资条中的申报基数填写")
+                                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                            .foregroundColor(.gray.opacity(0.6))
+                                    }
+                                    Spacer()
+                                    CyberpunkTextInput(
+                                        text: contributionBaseText,
+                                        placeholder: "跟随月薪",
+                                        suffix: currencyManager.currencySymbol,
+                                        color: CyberpunkTheme.cyanPrimary
+                                    )
+                                    .frame(width: 140)
+                                }
+
+                                HStack(spacing: 12) {
+                                    CyberpunkIconBadge(icon: "minus.circle.fill", color: CyberpunkTheme.yellowPrimary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("专项附加扣除（月）")
+                                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                            .foregroundColor(.white)
+                                        Text("子女教育、租房、房贷等；默认 0")
+                                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                            .foregroundColor(.gray.opacity(0.6))
+                                    }
+                                    Spacer()
+                                    CyberpunkTextInput(
+                                        text: specialDeductionText,
+                                        placeholder: "0",
+                                        suffix: currencyManager.currencySymbol,
+                                        color: CyberpunkTheme.yellowPrimary
+                                    )
+                                    .frame(width: 140)
+                                }
+
+                                HStack(spacing: 12) {
+                                    CyberpunkIconBadge(icon: "calendar.badge.clock", color: CyberpunkTheme.greenPrimary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("本年度计税月份")
+                                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                            .foregroundColor(.white)
+                                        Text("固定月薪的累计预扣估算；换工作或收入变化时请按工资条校准")
+                                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                            .foregroundColor(.gray.opacity(0.6))
+                                    }
+                                    Spacer()
+                                    CyberpunkStepper(value: $payrollSettings.taxMonth, range: 1...12, unit: "月")
+                                }
+                            }
+                        }
+                    }
+
+                    let payroll = enhancedViewModel.payrollBreakdown
+                    CyberpunkSettingsCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("本月到手估算")
+                                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Text(formatPayrollAmount(payroll.netMonthlyIncome))
+                                    .font(.system(size: 18, weight: .black, design: .monospaced))
+                                    .foregroundColor(CyberpunkTheme.greenPrimary)
+                            }
+                            Divider().background(CyberpunkTheme.purplePrimary.opacity(0.3))
+                            HStack {
+                                Text("税前 \(formatPayrollAmount(payroll.grossMonthlyIncome))")
+                                Spacer()
+                                Text("社保 -\(formatPayrollAmount(payroll.employeeSocialInsurance))")
+                                Spacer()
+                                Text("个税 -\(formatPayrollAmount(payroll.individualIncomeTax))")
+                            }
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundColor(.gray.opacity(0.7))
+                        }
+                    }
+                }
+            }
             
             // Work Schedule Section
             CyberpunkDeepLinkSection(
@@ -966,6 +1082,28 @@ struct CyberpunkPersonalInfoContent: View {
         UserDefaults.standard.set(goalEnabled, forKey: "monthlyGoalEnabled")
         UserDefaults.standard.set(goalTargetAmount, forKey: "monthlyGoalTargetAmount")
         UserDefaults.standard.set(goalTitle, forKey: "monthlyGoalTitle")
+    }
+
+    private var contributionBaseText: Binding<String> {
+        Binding(
+            get: {
+                payrollSettings.contributionBase > 0
+                    ? String(format: "%.0f", payrollSettings.contributionBase)
+                    : ""
+            },
+            set: { payrollSettings.contributionBase = max(0, Double($0) ?? 0) }
+        )
+    }
+
+    private var specialDeductionText: Binding<String> {
+        Binding(
+            get: { String(format: "%.0f", payrollSettings.monthlySpecialAdditionalDeduction) },
+            set: { payrollSettings.monthlySpecialAdditionalDeduction = max(0, Double($0) ?? 0) }
+        )
+    }
+
+    private func formatPayrollAmount(_ amount: Double) -> String {
+        "\(currencyManager.currencySymbol)\(String(format: "%.2f", amount))"
     }
     
     private func calculateGoalProgress() -> Double {

@@ -36,8 +36,10 @@ class StatusBarController: ObservableObject {
         }
     }
     
-    // Fixed width for status bar item to prevent shifting when content changes
-    private static let statusBarWidth: CGFloat = 90
+    // A fixed-width item can be pushed out of a crowded macOS menu bar. Let the
+    // system size it to the icon and current amount so the item stays eligible
+    // to appear alongside other menu-bar extras.
+    private static let statusBarWidth: CGFloat = NSStatusItem.variableLength
     
     // Smooth animation properties for menu bar amount
     private var displayedIncome: Double = 0
@@ -165,53 +167,20 @@ class StatusBarController: ObservableObject {
     }
     
     @objc func togglePopover(_ sender: NSStatusBarButton) {
-        if let event = NSApp.currentEvent {
-            if event.type == .rightMouseUp {
-                let menu = NSMenu()
-                menu.addItem(NSMenuItem(title: "common.quit".localized, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-                statusItem.menu = menu
-                menu.popUp(positioning: nil, at: NSPoint(x: 0, y: statusItem.button?.bounds.height ?? 0), in: statusItem.button)
-                statusItem.menu = nil
-            } else {
-                if popover.isShown {
-                    hidePopoverWindow()
-                    showPopover = false
-                } else {
-                    showPopoverWindow()
-                    showPopover = true
-                }
-            }
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            let menu = NSMenu()
+            menu.addItem(NSMenuItem(title: "common.quit".localized, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+            statusItem.menu = menu
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: statusItem.button?.bounds.height ?? 0), in: statusItem.button)
+            statusItem.menu = nil
+            return
         }
+
+        showPopover.toggle()
     }
     
     private func showPopoverWindow() {
-        guard let button = statusItem.button else { return }
-        
-        // Ensure the button's window is available and on screen
-        guard let window = button.window, window.isOnActiveSpace else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                self?.showPopoverWindow()
-            }
-            return
-        }
-        
-        // Pre-calculate the button's screen position to validate it's reasonable
-        let buttonFrame = button.bounds
-        let buttonScreenFrame = window.convertToScreen(button.convert(buttonFrame, to: nil))
-        
-        // Validate screen position - ensure button is actually visible on a screen
-        let screens = NSScreen.screens
-        let isButtonOnValidScreen = screens.contains { screen in
-            screen.frame.intersects(buttonScreenFrame)
-        }
-        
-        guard isButtonOnValidScreen else {
-            // Button is not on any visible screen, wait and retry
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                self?.showPopoverWindow()
-            }
-            return
-        }
+        guard statusItem.button?.window != nil else { return }
         
         // Create fresh SwiftUI view each time to ensure proper cleanup on close
         // This allows onDisappear to be called, stopping repeatForever animations
@@ -237,11 +206,9 @@ class StatusBarController: ObservableObject {
         
         // Show popover using a fresh reference to avoid stale coordinates
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Get fresh button reference
-            guard let freshButton = self.statusItem.button else { return }
-            guard freshButton.window != nil else { return }
+            guard let self = self, self.showPopover,
+                  let freshButton = self.statusItem.button,
+                  freshButton.window != nil else { return }
             
             // Use the standardized bounds for consistent positioning
             let bounds = CGRect(x: 0, y: 0, width: freshButton.bounds.width, height: freshButton.bounds.height)

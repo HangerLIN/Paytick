@@ -15,6 +15,8 @@ class EnhancedIncomeViewModel: ObservableObject {
     @Published var isConfigured: Bool = false
     @Published var isLoading: Bool = false
     @Published var isUsingDefaultConfig: Bool = false  // True if user hasn't customized settings yet
+    /// The displayed income values are net of enabled payroll deductions.
+    @Published var payrollBreakdown: PayrollBreakdown = .zero
     
     // Statistics
     @Published var weeklyStats: WeeklyStats = WeeklyStats()
@@ -51,6 +53,11 @@ class EnhancedIncomeViewModel: ObservableObject {
     private let smartScheduler: SmartNotificationScheduler
     private let timerManager: TimerManager
     private let repositoryManager = RepositoryManager.shared
+    let payrollSettings = PayrollDeductionSettings.shared
+
+    private var grossCurrentIncome: Double = 0
+    private var grossMinuteRate: Double = 0
+    private var grossMonthlyAccumulatedIncome: Double = 0
     
     // Value Stream Calculator for real-time overtime detection
     private var valueStreamCalculator: ValueStreamCalculator?
@@ -103,6 +110,7 @@ class EnhancedIncomeViewModel: ObservableObject {
         loadUserConfiguration()
         startRealTimeUpdates()
         setupValueStreamBindings()
+        setupPayrollSettingsBinding()
         setupNotificationObservers()
     }
     
@@ -244,7 +252,10 @@ class EnhancedIncomeViewModel: ObservableObject {
         // Bind income calculation service
         incomeCalculationService.$currentIncome
             .receive(on: DispatchQueue.main)
-            .assign(to: \.currentIncome, on: self)
+            .sink { [weak self] income in
+                self?.grossCurrentIncome = income
+                self?.refreshPayroll()
+            }
             .store(in: &cancellables)
         
         incomeCalculationService.$workStatus
@@ -259,7 +270,10 @@ class EnhancedIncomeViewModel: ObservableObject {
         
         incomeCalculationService.$minuteRate
             .receive(on: DispatchQueue.main)
-            .assign(to: \.minuteRate, on: self)
+            .sink { [weak self] rate in
+                self?.grossMinuteRate = rate
+                self?.refreshPayroll()
+            }
             .store(in: &cancellables)
         
         incomeCalculationService.$todayWorkedMinutes
@@ -309,10 +323,41 @@ class EnhancedIncomeViewModel: ObservableObject {
             
         calculator.$monthlyAccumulatedIncome
             .receive(on: DispatchQueue.main)
-            .assign(to: \.monthlyAccumulatedIncome, on: self)
+            .sink { [weak self] income in
+                self?.grossMonthlyAccumulatedIncome = income
+                self?.refreshPayroll()
+            }
             .store(in: &cancellables)
             
         // Note: Other bindings can be added gradually after testing
+    }
+
+    private func setupPayrollSettingsBinding() {
+        payrollSettings.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // ObservableObject publishes before the changed setting is assigned.
+                DispatchQueue.main.async {
+                    self?.refreshPayroll()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func refreshPayroll() {
+        let grossMonthlyIncome = userProfile?.monthlySalary ?? 0
+        let breakdown = PayrollCalculator.calculate(
+            grossMonthlyIncome: grossMonthlyIncome,
+            configuration: payrollSettings.configuration
+        )
+        payrollBreakdown = breakdown
+
+        let netMultiplier = grossMonthlyIncome > 0
+            ? breakdown.netMonthlyIncome / grossMonthlyIncome
+            : 1
+        currentIncome = grossCurrentIncome * netMultiplier
+        minuteRate = grossMinuteRate * netMultiplier
+        monthlyAccumulatedIncome = grossMonthlyAccumulatedIncome * netMultiplier
     }
     
     private func loadUserConfiguration() {
@@ -402,6 +447,7 @@ class EnhancedIncomeViewModel: ObservableObject {
                 workSchedule: schedule
             )
         }
+        refreshPayroll()
     }
     
     private func startRealTimeUpdates() {

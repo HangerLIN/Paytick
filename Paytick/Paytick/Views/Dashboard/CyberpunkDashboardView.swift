@@ -155,10 +155,10 @@ struct CyberpunkDashboardView: View {
         
         // Sum of all component heights
         let contentHeight = heroHeight + setupHeight + gridHeight +
-                           DashboardLayout.bottomCardsHeight + DashboardLayout.footerHeight
+                           DashboardLayout.bottomCardsHeight + DashboardLayout.footerHeight + 44
         
         // Spacing: 3 gaps normally, 4 gaps with setup reminder
-        let spacingCount = isUsingDefaultConfig ? 4 : 3
+        let spacingCount = isUsingDefaultConfig ? 5 : 4
         let totalSpacing = CGFloat(spacingCount) * DashboardLayout.vStackSpacing
         
         // Total = content + spacing + padding (top + bottom)
@@ -187,6 +187,21 @@ struct CyberpunkDashboardView: View {
                     privacySettings: privacySettings,
                     glitchActive: glitchActive
                 )
+
+                HStack {
+                    Button(enhancedViewModel.todayEarlyDeparture == nil ? "提早下班" : "今日已结算") {
+                        enhancedViewModel.settleEarlyDeparture()
+                    }
+                    .disabled(enhancedViewModel.todayEarlyDeparture != nil || enhancedViewModel.workStatus != .working)
+                    Spacer()
+                    Text("本月偷了 " + (privacySettings.isPrivacyModeEnabled ? CurrencyManager.shared.formatMaskedAmount() : CurrencyManager.shared.formatAmount(enhancedViewModel.monthlyEarlyDeparture)))
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundColor(CyberpunkTheme.cyanPrimary)
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 44)
+                .background(CyberpunkTheme.terminalSectionBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 
                 // Setup Reminder - Show when using default config
                 if enhancedViewModel.isUsingDefaultConfig {
@@ -374,7 +389,7 @@ struct HeroEarningsCard: View {
     
     // Only show overtime UI if user has enabled overtime warning in settings
     private var shouldShowOvertimeMode: Bool {
-        enhancedViewModel.isOvertime && notificationService.preferences.overtimeWarningEnabled
+        enhancedViewModel.todayEarlyDeparture == nil && enhancedViewModel.isOvertime && notificationService.preferences.overtimeWarningEnabled
     }
     
     // Colors based on overtime state
@@ -513,7 +528,19 @@ struct HeroEarningsCard: View {
                 }
                 
                 // Main Display - Different for Normal vs Overtime mode
-                if shouldShowOvertimeMode {
+                if let amount = enhancedViewModel.todayEarlyDeparture {
+                    VStack(spacing: 12) {
+                        Text("今天多偷了")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(CyberpunkTheme.cyanPrimary)
+                        Text(privacySettings.isPrivacyModeEnabled ? CurrencyManager.shared.formatMaskedAmount() : formatCurrency(amount))
+                            .font(.system(size: 38, weight: .bold, design: .monospaced))
+                            .foregroundColor(CyberpunkTheme.greenPrimary)
+                        Text("已一次性结算")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                } else if shouldShowOvertimeMode {
                     // === OVERTIME MODE: Show Loss Stats ===
                     overtimeStatsView
                 } else {

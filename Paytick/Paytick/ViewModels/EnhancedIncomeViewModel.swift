@@ -17,6 +17,9 @@ class EnhancedIncomeViewModel: ObservableObject {
     @Published var isUsingDefaultConfig: Bool = false  // True if user hasn't customized settings yet
     /// The displayed income values are net of enabled payroll deductions.
     @Published var payrollBreakdown: PayrollBreakdown = .zero
+    @Published private(set) var todayEarlyDeparture: Double?
+    @Published private(set) var monthlyEarlyDeparture: Double = 0
+    private let earlyDepartureStore = EarlyDepartureStore()
     
     // Statistics
     @Published var weeklyStats: WeeklyStats = WeeklyStats()
@@ -188,6 +191,25 @@ class EnhancedIncomeViewModel: ObservableObject {
         // Get monthly accumulated income from published property
         return monthlyAccumulatedIncome
     }
+
+    func settleEarlyDeparture() {
+        let now = Date()
+        guard let profile = userProfile, let schedule = workSchedule,
+              profile.workdaysPerMonth > 0,
+              incomeCalculationService.isWorkingTime(currentTime: now, workSchedule: schedule) == .working,
+              earlyDepartureStore.amount(on: now) == nil else { return }
+        let gross = profile.monthlySalary
+        let netRatio = gross > 0 ? payrollBreakdown.netMonthlyIncome / gross : 1
+        let earned = incomeCalculationService.calculateDailyIncome(currentTime: now, userProfile: profile, workSchedule: schedule).finalIncome * netRatio
+        let daily = gross / Double(profile.workdaysPerMonth) * netRatio
+        earlyDepartureStore.settle(on: now, dailyIncome: daily, earnedIncome: earned)
+        refreshEarlyDeparture(now: now)
+    }
+
+    private func refreshEarlyDeparture(now: Date = Date()) {
+        todayEarlyDeparture = earlyDepartureStore.amount(on: now)
+        monthlyEarlyDeparture = earlyDepartureStore.monthlyTotal(on: now)
+    }
     
     func refreshStatistics() {
         statisticsService.calculateWeeklyStats()
@@ -345,6 +367,7 @@ class EnhancedIncomeViewModel: ObservableObject {
     }
 
     private func refreshPayroll() {
+        refreshEarlyDeparture()
         let grossMonthlyIncome = userProfile?.monthlySalary ?? 0
         let breakdown = PayrollCalculator.calculate(
             grossMonthlyIncome: grossMonthlyIncome,

@@ -79,6 +79,11 @@ class StatusBarController: ObservableObject {
                 self?.updateStatusBarDisplay()
             }
             .store(in: &cancellables)
+
+        enhancedViewModel.$todayEarlyDeparture
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateStatusBarDisplay() }
+            .store(in: &cancellables)
             
         // Listen for privacy mode changes
         privacySettings.$isPrivacyModeEnabled
@@ -250,7 +255,7 @@ class StatusBarController: ObservableObject {
         guard let statusBarButton = statusItem.button else { return }
         
         // Get current income from EnhancedIncomeViewModel
-        let newIncome = enhancedViewModel.currentIncome
+        let newIncome = enhancedViewModel.todayEarlyDeparture ?? enhancedViewModel.currentIncome
         
         // Check if we need smooth animation (only for non-privacy numerical display)
         if !privacySettings.isPrivacyModeEnabled && abs(newIncome - displayedIncome) > 0.01 {
@@ -320,7 +325,7 @@ class StatusBarController: ObservableObject {
         }
         
         // Update button title (text next to icon)
-        statusBarButton.title = " \(displayText)"
+        statusBarButton.title = enhancedViewModel.todayEarlyDeparture == nil ? " \(displayText)" : " 偷 \(displayText)"
         statusBarButton.imagePosition = .imageLeading
         
         // Style the text with monospaced digits for stable width

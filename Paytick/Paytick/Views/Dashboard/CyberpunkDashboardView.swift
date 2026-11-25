@@ -172,6 +172,10 @@ struct CyberpunkDashboardView: View {
             isOvertime: enhancedViewModel.isOvertime
         )
     }
+
+    private var canLeaveEarly: Bool {
+        enhancedViewModel.todayEarlyDeparture == nil && enhancedViewModel.workStatus == .working
+    }
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -189,10 +193,19 @@ struct CyberpunkDashboardView: View {
                 )
 
                 HStack {
-                    Button(enhancedViewModel.todayEarlyDeparture == nil ? "提早下班" : "今日已结算") {
+                    Button {
                         enhancedViewModel.settleEarlyDeparture()
+                    } label: {
+                        Text(enhancedViewModel.todayEarlyDeparture == nil ? "提早下班" : "今日已结算")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(canLeaveEarly ? .black : .white.opacity(0.7))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(canLeaveEarly ? CyberpunkTheme.cyanPrimary : Color.white.opacity(0.15))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
-                    .disabled(enhancedViewModel.todayEarlyDeparture != nil || enhancedViewModel.workStatus != .working)
+                    .buttonStyle(.plain)
+                    .disabled(!canLeaveEarly)
                     Spacer()
                     Text("本月偷了 " + (privacySettings.isPrivacyModeEnabled ? CurrencyManager.shared.formatMaskedAmount() : CurrencyManager.shared.formatAmount(enhancedViewModel.monthlyEarlyDeparture)))
                         .font(.system(size: 12, weight: .medium, design: .monospaced))

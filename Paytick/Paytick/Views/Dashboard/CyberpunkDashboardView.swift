@@ -155,7 +155,7 @@ struct CyberpunkDashboardView: View {
         
         // Sum of all component heights
         let contentHeight = heroHeight + setupHeight + gridHeight +
-                           DashboardLayout.bottomCardsHeight + DashboardLayout.footerHeight + 44
+                           DashboardLayout.bottomCardsHeight + DashboardLayout.footerHeight + 78
         
         // Spacing: 3 gaps normally, 4 gaps with setup reminder
         let spacingCount = isUsingDefaultConfig ? 5 : 4
@@ -192,7 +192,7 @@ struct CyberpunkDashboardView: View {
                     glitchActive: glitchActive
                 )
 
-                HStack {
+                VStack(alignment: .leading, spacing: 6) {
                     Button {
                         enhancedViewModel.settleEarlyDeparture()
                     } label: {
@@ -206,13 +206,15 @@ struct CyberpunkDashboardView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!canLeaveEarly)
-                    Spacer()
-                    Text("本月偷了 " + (privacySettings.isPrivacyModeEnabled ? CurrencyManager.shared.formatMaskedAmount() : CurrencyManager.shared.formatAmount(enhancedViewModel.monthlyEarlyDeparture)))
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundColor(CyberpunkTheme.cyanPrimary)
+                    HStack(spacing: 8) {
+                        earlyDepartureStat("今日偷了", amount: enhancedViewModel.todayEarlyDeparture ?? 0)
+                        earlyDepartureStat("本月偷了", amount: enhancedViewModel.monthlyEarlyDeparture)
+                        earlyDepartureStat("本年偷了", amount: enhancedViewModel.yearlyEarlyDeparture)
+                    }
                 }
                 .padding(.horizontal, 12)
-                .frame(height: 44)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 78)
                 .background(CyberpunkTheme.terminalSectionBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 
@@ -345,6 +347,18 @@ struct CyberpunkDashboardView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PopoverWillClose"))) { _ in
             showingSettings = false
         }
+    }
+
+    private func earlyDepartureStat(_ title: String, amount: Double) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).foregroundColor(.white.opacity(0.7))
+            Text(privacySettings.isPrivacyModeEnabled ? CurrencyManager.shared.formatMaskedAmount() : CurrencyManager.shared.formatAmount(amount))
+                .foregroundColor(CyberpunkTheme.cyanPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .font(.system(size: 11, weight: .medium, design: .monospaced))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
     private func startGlitchEffect() {

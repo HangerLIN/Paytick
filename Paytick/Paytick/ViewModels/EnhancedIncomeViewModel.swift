@@ -19,6 +19,7 @@ class EnhancedIncomeViewModel: ObservableObject {
     @Published var payrollBreakdown: PayrollBreakdown = .zero
     @Published private(set) var todayEarlyDeparture: Double?
     @Published private(set) var monthlyEarlyDeparture: Double = 0
+    @Published private(set) var yearlyEarlyDeparture: Double = 0
     private let earlyDepartureStore = EarlyDepartureStore()
     
     // Statistics
@@ -209,6 +210,7 @@ class EnhancedIncomeViewModel: ObservableObject {
     private func refreshEarlyDeparture(now: Date = Date()) {
         todayEarlyDeparture = earlyDepartureStore.amount(on: now)
         monthlyEarlyDeparture = earlyDepartureStore.monthlyTotal(on: now)
+        yearlyEarlyDeparture = earlyDepartureStore.yearlyTotal(on: now)
     }
     
     func refreshStatistics() {

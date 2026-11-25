@@ -27,6 +27,11 @@ final class EarlyDepartureStore {
         return records.filter { $0.key.hasPrefix(prefix) }.values.reduce(0, +)
     }
 
+    func yearlyTotal(on date: Date) -> Double {
+        let prefix = String(dayKey(date).prefix(4)) + "-"
+        return records.filter { $0.key.hasPrefix(prefix) }.values.reduce(0, +)
+    }
+
     @discardableResult
     func settle(on date: Date, dailyIncome: Double, earnedIncome: Double) -> Double {
         var saved = records
